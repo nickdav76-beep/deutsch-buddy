@@ -13,7 +13,9 @@ const MAX_HISTORY = 20; // messages kept, to keep each call cheap
 const MAX_CHARS = 1000; // per user message
 
 function cors(origin: string | null, env: Env): Record<string, string> {
-  const allowed = env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
+  const allowed = (env.ALLOWED_ORIGINS || "https://nickdav76-beep.github.io,http://localhost:5173")
+    .split(",")
+    .map((s) => s.trim());
   const ok = origin && allowed.includes(origin);
   return {
     "Access-Control-Allow-Origin": ok ? origin : allowed[0] ?? "",
