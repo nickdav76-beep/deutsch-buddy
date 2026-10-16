@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4efe6" />
+    <title>Deutsch Buddy</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header class="bar">
+        <div class="who">
+          <div class="avatar" aria-hidden="true">L</div>
+          <div>
+            <div class="name">Lena</div>
+            <div class="sub" id="status">aus Hamburg · <span id="levelLabel">A2</span></div>
+          </div>
+        </div>
+        <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+          </svg>
+        </button>
+      </header>
+
+      <main id="chat" aria-live="polite"></main>
+
+      <form id="composer" autocomplete="off">
+        <textarea id="input" rows="1" placeholder="Schreib auf Deutsch…" lang="de" spellcheck="false"></textarea>
+        <button type="submit" id="sendBtn" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 20.5 21 12 3 3.5 3 10l12 2-12 2z" /></svg>
+        </button>
+      </form>
+    </div>
+
+    <dialog id="settings">
+      <form method="dialog" id="settingsForm">
+        <h2>Settings</h2>
+        <label>Your level
+          <select name="level">
+            <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option>
+          </select>
+        </label>
+        <label>Scenario
+          <select name="scenario">
+            <option value="free">Free chat</option>
+            <option value="baeckerei">At the Bäckerei</option>
+            <option value="bahnhof">At the train station</option>
+            <option value="restaurant">At a restaurant</option>
+            <option value="musik">Talking about music</option>
+          </select>
+        </label>
+        <label>Worker URL
+          <input name="workerUrl" type="url" placeholder="https://deutsch-buddy-api.you.workers.dev" />
+        </label>
+        <label>Access code
+          <input name="accessCode" type="password" placeholder="The code you set on the Worker" />
+        </label>
+        <p class="usage" id="usage"></p>
+        <div class="row">
+          <button type="button" class="ghost" id="newChat">New chat</button>
+          <button value="save" class="primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+name = "deutsch-buddy-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://nickdav76-beep.github.io,http://localhost:5173"
+MODEL = "claude-haiku-5-5"
+
+# Secrets (set once, never committed):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put ACCESS_CODE
