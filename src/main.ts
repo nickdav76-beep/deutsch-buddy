@@ -1,5 +1,5 @@
 import "./styles.css";
-import { costUsd, sendChat, type Settings } from "./api";
+import { costUsd, lookupWord, sendChat, sentenceAround, type Settings } from "./api";
 import { sameIgnoringPunctuation, wordDiff } from "./diff";
 import { playDevice, playTimed, stop, unlockAudio } from "./player";
 import { store, type Turn } from "./store";
@@ -56,19 +56,23 @@ function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number)
   wrap.dataset.turn = String(index);
   const bubble = el("div", "bubble");
   bubble.lang = "de";
-  bubble.title = "Tap for English";
-  const words = timings.get(t.text);
-  if (words?.length) {
-    for (const seg of buildSegments(t.text, words)) {
-      if (seg.word === null) bubble.append(seg.text);
-      else {
-        const w = el("span", "w", seg.text);
-        w.dataset.w = String(seg.word);
-        if (speaking?.turn === index && speaking.word === seg.word) w.classList.add("now");
-        bubble.append(w);
-      }
+  // Every word is its own span: it can light up while spoken and be tapped for its meaning.
+  const words = timings.get(t.text) ?? wordPositions(t.text).map((p) => ({ ...p, start: 0, end: 0 }));
+  for (const seg of buildSegments(t.text, words)) {
+    if (seg.word === null) bubble.append(seg.text);
+    else {
+      const w = el("span", "w", seg.text);
+      w.dataset.w = String(seg.word);
+      w.dataset.o = String(words[seg.word].offset);
+      if (speaking?.turn === index && speaking.word === seg.word) w.classList.add("now");
+      if (picked?.turn === index && picked.offset === words[seg.word].offset) w.classList.add("picked");
+      bubble.append(w);
     }
-  } else bubble.textContent = t.text;
+  }
+  bubble.addEventListener("click", (e) => {
+    const w = (e.target as HTMLElement).closest(".w") as HTMLElement | null;
+    if (w) showWord(w, t.text, index);
+  });
   if (speaking?.turn === index) bubble.classList.add("speaking");
   wrap.append(bubble);
 
@@ -82,8 +86,6 @@ function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number)
     enBtn.classList.toggle("active", !tr.hidden);
     enBtn.setAttribute("aria-pressed", String(!tr.hidden));
   };
-  bubble.addEventListener("click", toggleEnglish);
-
   const controls = el("div", "voice-row");
   const enBtn = el("button", "voice-btn en-btn");
   enBtn.type = "button";
@@ -110,6 +112,105 @@ function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number)
   if (t.translation) wrap.append(tr);
   return wrap;
 }
+
+// ---------- Tap a word for its meaning ----------
+const pop = el("div", "word-pop");
+pop.hidden = true;
+pop.setAttribute("role", "dialog");
+document.body.append(pop);
+let picked: { turn: number; offset: number } | null = null;
+let lookupSeq = 0;
+
+function closeWord() {
+  if (pop.hidden) return;
+  pop.hidden = true;
+  picked = null;
+  chat.querySelector(".w.picked")?.classList.remove("picked");
+}
+
+function placePop(anchor: HTMLElement) {
+  const r = anchor.getBoundingClientRect();
+  const w = Math.min(300, window.innerWidth - 24);
+  pop.style.width = w + "px";
+  const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12));
+  pop.style.left = left + "px";
+  const below = r.bottom + 8;
+  const h = pop.offsetHeight || 120;
+  pop.style.top = (below + h > window.innerHeight - 12 ? Math.max(12, r.top - h - 8) : below) + "px";
+}
+
+async function showWord(span: HTMLElement, text: string, turn: number) {
+  const word = (span.textContent || "").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  if (!word) return;
+  const offset = Number(span.dataset.o);
+  if (picked?.turn === turn && picked.offset === offset && !pop.hidden) return closeWord();
+  chat.querySelector(".w.picked")?.classList.remove("picked");
+  span.classList.add("picked");
+  picked = { turn, offset };
+  const seq = ++lookupSeq;
+
+  pop.replaceChildren(el("div", "wp-word", word), el("div", "wp-loading", "Looking up…"));
+  pop.lang = "de";
+  pop.hidden = false;
+  placePop(span);
+
+  try {
+    const info = await lookupWord(settings, word, sentenceAround(text, offset));
+    if (seq !== lookupSeq) return; // another word was tapped meanwhile
+    if (info.usage) {
+      const u = store.usage();
+      store.saveUsage({ input: u.input + info.usage.input, output: u.output + info.usage.output, cached: u.cached + info.usage.cached });
+    }
+    const head = el("div", "wp-head");
+    head.append(el("span", "wp-word", word));
+    if (settings.voice !== "off") {
+      const say = el("button", "wp-say");
+      say.type = "button";
+      say.setAttribute("aria-label", "Hear " + word);
+      say.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      say.addEventListener("click", () => sayWord(word));
+      head.append(say);
+    }
+    const meta = el("div", "wp-meta");
+    if (info.lemma && info.lemma.toLowerCase() !== word.toLowerCase()) meta.append(el("span", "wp-lemma", info.lemma));
+    if (info.pos) meta.append(el("span", "wp-pos", info.pos));
+    const meaning = el("div", "wp-meaning", info.meaning);
+    meaning.lang = "en";
+    pop.replaceChildren(head);
+    if (meta.childElementCount) pop.append(meta);
+    pop.append(meaning);
+    if (info.note) {
+      const note = el("div", "wp-note", info.note);
+      note.lang = "en";
+      pop.append(note);
+    }
+    placePop(chat.querySelector(".w.picked") ?? span);
+  } catch (e) {
+    if (seq !== lookupSeq) return;
+    pop.replaceChildren(el("div", "wp-word", word), el("div", "wp-error", e instanceof Error ? e.message : "Couldn't look that up."));
+  }
+}
+
+async function sayWord(word: string) {
+  unlockAudio();
+  try {
+    if (settings.voice === "device") await playDevice(word, 0.9, { onWord: () => {}, onEnd: () => {} });
+    else {
+      const s = await synthesize(word, settings);
+      await playTimed(s.url, [], 0.9, { onWord: () => {}, onEnd: () => {} });
+    }
+  } catch (e) {
+    showError(e instanceof Error ? e.message : "Couldn't play that word.");
+  }
+}
+
+document.addEventListener("pointerdown", (e) => {
+  const t = e.target as HTMLElement;
+  if (!pop.hidden && !pop.contains(t) && !t.closest(".lena .w")) closeWord();
+});
+document.addEventListener("keydown", (e) => e.key === "Escape" && closeWord());
+chat.addEventListener("scroll", closeWord, { passive: true });
+window.addEventListener("resize", closeWord);
 
 function renderCorrection(t: Extract<Turn, { role: "user" }>) {
   const fixes = t.corrections ?? [];

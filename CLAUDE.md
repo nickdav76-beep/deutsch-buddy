@@ -29,6 +29,11 @@ A personal German conversation tutor. The learner is Nick, an English speaker le
 - Lena's audio is stopped before the mic opens so she isn't transcribed.
 - Each Lena message has an **English** button (also tap the bubble); shown translations survive redraws via `shownEnglish`.
 
+## Tap a word
+- Every word in Lena's bubbles is a `.w` span (timed or not). Tapping one calls `POST /word` with the word and its sentence (`sentenceAround`); the Worker asks Claude via the `word_info` tool for meaning-in-context, lemma (nouns with article), part of speech and an optional note.
+- Answers are cached in `localStorage` (`db.words`, max 400) so repeat taps are instant and free; the popup's speaker button synthesises just that word.
+- The bubble tap no longer toggles English; the **English** button does.
+
 ## Roadmap
 1. Text chat with corrections ← done
 2. Azure neural voice + word-by-word subtitles (word-boundary events) ← done

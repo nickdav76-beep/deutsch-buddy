@@ -77,5 +77,26 @@ export const SPOKEN_NOTE = `The learner's most recent message was SPOKEN and tur
 - Do correct real spoken errors: wrong case or article endings, gender, verb forms and position, word order, wrong word choice, missing words.
 - corrected_sentence should be their message as natural spoken German, with normal punctuation.`;
 
+export const WORD_PROMPT = `You are a concise German–English dictionary for an English-speaking learner. You get one German word and the sentence it appeared in. Call the word_info tool, never plain text.
+- meaning: the English meaning of the word AS USED IN THIS SENTENCE, 1–6 words. If useful, add the meaning of the whole phrase it belongs to after an arrow, e.g. "pleases → which song do you like".
+- lemma: the dictionary form. Nouns with their article (der Hafen, die Musik, das Lied); verbs in the infinitive (gefallen); adjectives in the base form (gut).
+- pos: noun, verb, adjective, adverb, pronoun, preposition, article, conjunction, particle, number or interjection.
+- note: optional, one short English sentence for anything a learner would trip on here: case (dir = dative), separable verbs, irregular forms, idioms, or a plural (Lieder is the plural of das Lied). Leave it empty when there is nothing useful to say.`;
+
+export const WORD_TOOL = {
+  name: "word_info",
+  description: "Explain one German word in its sentence.",
+  input_schema: {
+    type: "object",
+    properties: {
+      meaning: { type: "string" },
+      lemma: { type: "string" },
+      pos: { type: "string" },
+      note: { type: "string" },
+    },
+    required: ["meaning", "lemma", "pos"],
+  },
+} as const;
+
 export const OPENER_INSTRUCTION =
   "(The learner just opened the app. Greet them and start the conversation for this scenario. Return an empty corrections list and an empty corrected_sentence.)";

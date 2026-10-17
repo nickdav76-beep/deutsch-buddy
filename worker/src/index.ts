@@ -1,4 +1,4 @@
-import { LEVELS, Level, OPENER_INSTRUCTION, SPOKEN_NOTE, TUTOR_TOOL, systemPrompt } from "./prompt";
+import { LEVELS, Level, OPENER_INSTRUCTION, SPOKEN_NOTE, TUTOR_TOOL, WORD_PROMPT, WORD_TOOL, systemPrompt } from "./prompt";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -66,6 +66,50 @@ export function cleanMessages(raw: unknown): ChatMessage[] | null {
   return trimmed;
 }
 
+/** Meaning of one word in its sentence, for the tap-a-word popup. */
+async function wordInfo(body: any, env: Env, headers: Record<string, string>): Promise<Response> {
+  const word = typeof body.word === "string" ? body.word.trim().slice(0, 40) : "";
+  const sentence = typeof body.sentence === "string" ? body.sentence.trim().slice(0, 400) : "";
+  if (!word) return json({ error: "bad_word" }, 400, headers);
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: env.MODEL || "claude-haiku-5-5",
+      max_tokens: 300,
+      system: [{ type: "text", text: WORD_PROMPT, cache_control: { type: "ephemeral" } }],
+      tools: [WORD_TOOL],
+      tool_choice: { type: "auto" },
+      messages: [{ role: "user", content: `Word: ${word}\nSentence: ${sentence || word}` }],
+    }),
+  });
+  if (!res.ok) return json({ error: "upstream", status: res.status }, 502, headers);
+  const data: any = await res.json();
+  const tool = (data.content ?? []).find((c: any) => c.type === "tool_use" && c.name === "word_info");
+  const t = tool?.input;
+  if (!t?.meaning) return json({ error: "no_output" }, 502, headers);
+  return json(
+    {
+      word,
+      meaning: String(t.meaning),
+      lemma: String(t.lemma ?? word),
+      pos: String(t.pos ?? ""),
+      note: t.note ? String(t.note) : undefined,
+      usage: {
+        input: data.usage?.input_tokens ?? 0,
+        output: data.usage?.output_tokens ?? 0,
+        cached: data.usage?.cache_read_input_tokens ?? 0,
+      },
+    },
+    200,
+    headers,
+  );
+}
+
 export function parseTutorOutput(data: any): Record<string, any> | null {
   const content: any[] = Array.isArray(data?.content) ? data.content : [];
   const tool = content.find((c) => c.type === "tool_use" && c.name === "tutor_turn");
@@ -85,7 +129,7 @@ export default {
 
     const url = new URL(req.url);
     if (req.method === "GET" && url.pathname === "/") return json({ ok: true, service: "deutsch-buddy-api" }, 200, headers);
-    if (req.method !== "POST" || (url.pathname !== "/chat" && url.pathname !== "/speech-token")) {
+    if (req.method !== "POST" || !["/chat", "/speech-token", "/word"].includes(url.pathname)) {
       return json({ error: "not_found" }, 404, headers);
     }
     if (req.headers.get("X-Access-Code") !== env.ACCESS_CODE) return json({ error: "bad_access_code" }, 401, headers);
@@ -97,6 +141,7 @@ export default {
     } catch {
       return json({ error: "bad_json" }, 400, headers);
     }
+    if (url.pathname === "/word") return wordInfo(body, env, headers);
 
     const level: Level = LEVELS.includes(body.level) ? body.level : "A2";
     const scenario = typeof body.scenario === "string" ? body.scenario : "free";

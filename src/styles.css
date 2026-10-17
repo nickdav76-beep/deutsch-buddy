@@ -122,6 +122,36 @@ html, body {
   padding: 4px 10px 4px 8px; cursor: pointer;
 }
 .voice-btn:hover { background: var(--lena-soft); border-color: var(--lena-soft); }
+.lena .bubble .w { cursor: pointer; }
+.lena .bubble .w.picked { background: var(--card); box-shadow: 0 0 0 1.5px var(--lena); }
+
+.word-pop {
+  position: fixed; z-index: 20;
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.14);
+  font-size: 14px; line-height: 1.4;
+  display: grid; gap: 4px;
+}
+.word-pop[hidden] { display: none; }
+.wp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wp-word { font-family: var(--serif); font-size: 19px; font-weight: 600; }
+.wp-say {
+  border: 1px solid var(--line); background: none; color: var(--lena);
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+}
+.wp-meta { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.wp-lemma { font-family: var(--serif); color: var(--lena); font-size: 15px; }
+.wp-pos {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); background: var(--paper); padding: 1px 6px; border-radius: 5px;
+}
+.wp-meaning { font-size: 16px; font-weight: 500; margin-top: 2px; }
+.wp-note { color: var(--muted); font-size: 13px; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 4px; }
+.wp-loading { color: var(--muted); font-style: italic; }
+.wp-error { color: var(--fix); }
+
 .voice-btn.active { background: var(--lena); color: var(--paper); border-color: var(--lena); }
 .voice-loading { font-size: 12px; color: var(--muted); font-style: italic; }
 
