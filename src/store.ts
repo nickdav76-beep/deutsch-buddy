@@ -5,6 +5,7 @@ export type Turn =
   | {
       role: "user";
       text: string;
+      spoken?: boolean;
       correctedSentence?: string;
       corrections?: Correction[];
       praise?: string;
@@ -38,6 +39,8 @@ export const defaultSettings: Settings = {
   scenario: "free",
   voice: "de-DE-KatjaNeural",
   autoSpeak: true,
+  listener: "azure",
+  autoSend: true,
 };
 
 export const store = {

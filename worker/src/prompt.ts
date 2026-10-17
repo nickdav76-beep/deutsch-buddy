@@ -71,5 +71,11 @@ export const TUTOR_TOOL = {
   },
 } as const;
 
+export const SPOKEN_NOTE = `The learner's most recent message was SPOKEN and turned into text by speech recognition.
+- Ignore punctuation, capital letters and spelling: those come from the recogniser, not the learner. Never use the "spelling" type for this message.
+- Speech recognition sometimes mishears. If a word looks like a mishearing of a sensible word rather than a learner error (it sounds similar and makes no sense in context), don't correct it; answer as if they said the sensible word.
+- Do correct real spoken errors: wrong case or article endings, gender, verb forms and position, word order, wrong word choice, missing words.
+- corrected_sentence should be their message as natural spoken German, with normal punctuation.`;
+
 export const OPENER_INSTRUCTION =
   "(The learner just opened the app. Greet them and start the conversation for this scenario. Return an empty corrections list and an empty corrected_sentence.)";

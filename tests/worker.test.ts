@@ -69,6 +69,31 @@ describe("speech token", () => {
   });
 });
 
+describe("spoken messages", () => {
+  const reply = () =>
+    new Response(
+      JSON.stringify({
+        content: [{ type: "tool_use", name: "tutor_turn", input: { reply: "Ja!", translation: "Yes!", corrected_sentence: "", corrections: [] } }],
+        usage: {},
+      }),
+      { status: 200 },
+    );
+
+  it("adds the speech-recognition note only when the last message was spoken", async () => {
+    const fake = vi.fn(async () => reply());
+    vi.stubGlobal("fetch", fake);
+    const msgs = [{ role: "user", content: "ich habe ein hund" }];
+    await worker.fetch(post({ messages: msgs, lastSpoken: true }), env);
+    await worker.fetch(post({ messages: msgs }), env);
+    const spoken = JSON.parse((fake.mock.calls[0] as any)[1].body);
+    const typed = JSON.parse((fake.mock.calls[1] as any)[1].body);
+    expect(spoken.system).toHaveLength(2);
+    expect(spoken.system[1].text).toContain("SPOKEN");
+    expect(spoken.system[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(typed.system).toHaveLength(1);
+  });
+});
+
 describe("worker", () => {
   it("answers a health check", async () => {
     const res = await worker.fetch(new Request("https://api.example/"), env);

@@ -21,7 +21,7 @@ declare global {
 
 let token: { value: string; region: string; until: number } | null = null;
 
-async function getToken(settings: Settings) {
+export async function getToken(settings: Settings) {
   if (token && Date.now() < token.until) return token;
   const res = await fetch(settings.workerUrl.replace(/\/+$/, "") + "/speech-token", {
     method: "POST",

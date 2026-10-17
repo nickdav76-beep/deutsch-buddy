@@ -21,17 +21,20 @@ export type Settings = {
   scenario: string;
   voice: string; // an Azure voice name, "device" or "off"
   autoSpeak: boolean;
+  listener: string; // "azure" or "browser"
+  autoSend: boolean; // send automatically after a pause in speech
 };
 
 export async function sendChat(
   settings: Settings,
   messages: { role: "user" | "assistant"; content: string }[],
+  lastSpoken = false,
 ): Promise<TutorResponse> {
   const url = settings.workerUrl.replace(/\/+$/, "") + "/chat";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Access-Code": settings.accessCode },
-    body: JSON.stringify({ level: settings.level, scenario: settings.scenario, messages }),
+    body: JSON.stringify({ level: settings.level, scenario: settings.scenario, messages, lastSpoken }),
   });
   if (res.status === 401) throw new Error("The access code doesn't match the one set on the Worker.");
   if (!res.ok) {

@@ -22,10 +22,17 @@ A personal German conversation tutor. The learner is Nick, an English speaker le
 - Voices: Katja (default), Amala, Seraphina, Conrad; "device" uses the browser's own voice; "off" is text only.
 - The Cloudflare dashboard runs `worker/dist/worker.js` (bundled with esbuild) — rebuild and re-paste it after Worker changes.
 
+## Speaking (Stage 3)
+- `src/listen.ts`: Azure continuous recognition (de-DE, same `/speech-token`) or the browser's SpeechRecognition; both report the running transcript via `onText`.
+- Tap the mic to talk; a 2.2 s pause (or tapping again) ends the turn and, with auto-send on, submits it.
+- Spoken turns carry `spoken: true`; `/chat` gets `lastSpoken`, and the Worker adds `SPOKEN_NOTE` as a second, uncached system block so Lena ignores recogniser spelling/punctuation and likely mishearings.
+- Lena's audio is stopped before the mic opens so she isn't transcribed.
+- Each Lena message has an **English** button (also tap the bubble); shown translations survive redraws via `shownEnglish`.
+
 ## Roadmap
 1. Text chat with corrections ← done
 2. Azure neural voice + word-by-word subtitles (word-boundary events) ← done
-3. Voice input (browser speech recognition, Azure STT fallback)
+3. Voice input (Azure STT, browser recognition option) ← done
 4. Own SVG character, lip-sync from Azure viseme events
 5. Learning memory: mistakes log, review mode, more scenarios
 6. Polish, Rive character

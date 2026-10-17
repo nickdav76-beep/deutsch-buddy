@@ -5,6 +5,7 @@ import { playDevice, playTimed, stop, unlockAudio } from "./player";
 import { store, type Turn } from "./store";
 import { buildSegments, wordPositions, type WordTiming } from "./subtitles";
 import { synthesize, VOICES } from "./voice";
+import { LISTENERS, startListening, type Session } from "./listen";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const chat = $<HTMLElement>("chat");
@@ -14,6 +15,7 @@ const sendBtn = $<HTMLButtonElement>("sendBtn");
 const dialog = $<HTMLDialogElement>("settings");
 const form = $<HTMLFormElement>("settingsForm");
 const avatar = document.querySelector(".avatar") as HTMLElement;
+const micBtn = $<HTMLButtonElement>("micBtn");
 
 let settings: Settings = store.settings();
 let turns: Turn[] = store.turns();
@@ -43,6 +45,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 const ICON_PLAY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
+const ICON_TRANSLATE =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2M6 5c.6 3.2 2.8 5.8 5.5 7M11 5c-.8 3.6-3.4 6.6-7 8"/><path d="M12.5 21l4-9 4 9M14 18h5"/></svg>';
+// Which of Lena's messages currently show their English (kept across redraws).
+const shownEnglish = new Set<number>();
 const ICON_STOP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 
 function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number) {
@@ -67,13 +73,26 @@ function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number)
   wrap.append(bubble);
 
   const tr = el("div", "translation", t.translation);
-  tr.hidden = true;
-  bubble.addEventListener("click", () => {
-    if (t.translation) tr.hidden = !tr.hidden;
-  });
+  tr.hidden = !shownEnglish.has(index);
+  const toggleEnglish = () => {
+    if (!t.translation) return;
+    if (shownEnglish.has(index)) shownEnglish.delete(index);
+    else shownEnglish.add(index);
+    tr.hidden = !shownEnglish.has(index);
+    enBtn.classList.toggle("active", !tr.hidden);
+    enBtn.setAttribute("aria-pressed", String(!tr.hidden));
+  };
+  bubble.addEventListener("click", toggleEnglish);
+
+  const controls = el("div", "voice-row");
+  const enBtn = el("button", "voice-btn en-btn");
+  enBtn.type = "button";
+  enBtn.innerHTML = ICON_TRANSLATE + "<span>English</span>";
+  enBtn.classList.toggle("active", !tr.hidden);
+  enBtn.setAttribute("aria-pressed", String(!tr.hidden));
+  enBtn.addEventListener("click", toggleEnglish);
 
   if (settings.voice !== "off") {
-    const controls = el("div", "voice-row");
     const isMe = speaking?.turn === index;
     const play = el("button", "voice-btn");
     play.type = "button";
@@ -84,9 +103,10 @@ function renderAssistant(t: Extract<Turn, { role: "assistant" }>, index: number)
     slow.innerHTML = ICON_PLAY + "<span>Slowly</span>";
     slow.addEventListener("click", () => speak(index, 0.75));
     controls.append(play, slow);
-    if (loadingTurn === index) controls.append(el("span", "voice-loading", "loading voice…"));
-    wrap.append(controls);
   }
+  if (t.translation) controls.append(enBtn);
+  if (loadingTurn === index) controls.append(el("span", "voice-loading", "loading voice…"));
+  if (controls.childElementCount) wrap.append(controls);
   if (t.translation) wrap.append(tr);
   return wrap;
 }
@@ -125,6 +145,12 @@ function renderUser(t: Extract<Turn, { role: "user" }>, pending: boolean) {
   const bubble = el("div", "bubble", t.text);
   bubble.lang = "de";
   wrap.append(bubble);
+  if (t.spoken) {
+    const tag = el("div", "spoken-tag");
+    tag.innerHTML =
+      '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>spoken';
+    wrap.append(tag);
+  }
   if (pending) wrap.append(el("div", "card checking", "Checking…"));
   else if (t.corrections) wrap.append(renderCorrection(t));
   return wrap;
@@ -207,7 +233,8 @@ async function talk() {
   render();
   try {
     const history = turns.map((t) => ({ role: t.role, content: t.text }));
-    const res = await sendChat(settings, history);
+    const lastTurn = turns.at(-1);
+    const res = await sendChat(settings, history, lastTurn?.role === "user" && Boolean(lastTurn.spoken));
     const last = turns.at(-1);
     if (last && last.role === "user") {
       last.correctedSentence = res.corrected_sentence;
@@ -238,13 +265,83 @@ async function talk() {
 document.addEventListener("pointerdown", unlockAudio, { once: true });
 document.addEventListener("keydown", unlockAudio, { once: true });
 
+// ---------- Speaking to Lena ----------
+let session: Session | null = null;
+let micStarting = false;
+let spokenDraft = false; // the text box holds what was heard, not what was typed
+let idleTimer = 0;
+let capTimer = 0;
+const PAUSE_MS = 2200; // a pause this long ends the turn when auto-send is on
+const MAX_MS = 60000;
+
+function micUi() {
+  const on = session !== null;
+  micBtn.classList.toggle("on", on);
+  micBtn.classList.toggle("starting", micStarting);
+  micBtn.setAttribute("aria-pressed", String(on));
+  micBtn.setAttribute("aria-label", on ? "Stop listening" : "Speak");
+  micBtn.disabled = busy && !on;
+  input.classList.toggle("listening", on);
+  input.placeholder = on ? "Ich höre zu…" : "Schreib oder sprich…";
+}
+
+function stopMic() {
+  clearTimeout(idleTimer);
+  clearTimeout(capTimer);
+  session?.stop();
+}
+
+async function startMic() {
+  if (session || micStarting || busy) return;
+  if (!settings.workerUrl) return dialog.showModal();
+  unlockAudio();
+  stop(); // don't let the microphone hear Lena
+  micStarting = true;
+  input.value = "";
+  autosize();
+  micUi();
+  try {
+    session = await startListening(settings, {
+      onText: (text) => {
+        input.value = text;
+        spokenDraft = true;
+        autosize();
+        clearTimeout(idleTimer);
+        if (settings.autoSend && text.trim()) idleTimer = window.setTimeout(stopMic, PAUSE_MS);
+      },
+      onEnd: (err) => {
+        clearTimeout(idleTimer);
+        clearTimeout(capTimer);
+        session = null;
+        micUi();
+        if (err) return showError(err.message);
+        if (settings.autoSend && input.value.trim()) composer.requestSubmit();
+        else input.focus();
+      },
+    });
+    capTimer = window.setTimeout(stopMic, MAX_MS);
+  } catch (e) {
+    showError(e instanceof Error ? e.message : "The microphone couldn't start.");
+  } finally {
+    micStarting = false;
+    micUi();
+  }
+}
+
+micBtn.addEventListener("click", () => (session ? stopMic() : startMic()));
+
+// Typing in the box means it's no longer purely what the microphone heard.
+input.addEventListener("input", () => (spokenDraft = false));
+
 composer.addEventListener("submit", (e) => {
   e.preventDefault();
   unlockAudio();
+  if (session) return stopMic(); // pressing send while talking finishes the turn
   const text = input.value.trim();
   if (!text || busy) return;
   stop();
-  turns.push({ role: "user", text });
+  turns.push({ role: "user", text, spoken: spokenDraft });
+  spokenDraft = false;
   store.saveTurns(turns);
   input.value = "";
   autosize();
@@ -266,6 +363,8 @@ input.addEventListener("input", autosize);
 
 const voiceSelect = form.elements.namedItem("voice") as HTMLSelectElement;
 for (const v of VOICES) voiceSelect.append(new Option(v.label, v.id));
+const listenerSelect = form.elements.namedItem("listener") as HTMLSelectElement;
+for (const l of LISTENERS) listenerSelect.append(new Option(l.label, l.id));
 
 function openSettings() {
   for (const [k, v] of Object.entries(settings)) {
@@ -291,12 +390,15 @@ form.addEventListener("submit", () => {
     scenario: String(data.get("scenario") || "free"),
     voice: String(data.get("voice") || "de-DE-KatjaNeural"),
     autoSpeak: data.get("autoSpeak") === "on",
+    listener: String(data.get("listener") || "azure"),
+    autoSend: data.get("autoSend") === "on",
   };
   store.saveSettings(settings);
   stop();
   // A new scenario starts a fresh conversation so Lena's role makes sense.
   if (before !== settings.scenario + settings.level || turns.length === 0) {
     turns = [];
+    shownEnglish.clear();
     store.saveTurns(turns);
     if (settings.workerUrl) talk();
   }
@@ -306,6 +408,7 @@ form.addEventListener("submit", () => {
 $("newChat").addEventListener("click", () => {
   stop();
   turns = [];
+  shownEnglish.clear();
   store.saveTurns(turns);
   dialog.close();
   render();

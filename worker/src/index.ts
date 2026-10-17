@@ -1,4 +1,4 @@
-import { LEVELS, Level, OPENER_INSTRUCTION, TUTOR_TOOL, systemPrompt } from "./prompt";
+import { LEVELS, Level, OPENER_INSTRUCTION, SPOKEN_NOTE, TUTOR_TOOL, systemPrompt } from "./prompt";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -114,7 +114,11 @@ export default {
       body: JSON.stringify({
         model: env.MODEL || "claude-haiku-5-5",
         max_tokens: 1024,
-        system: [{ type: "text", text: systemPrompt(level, scenario), cache_control: { type: "ephemeral" } }],
+        // The main prompt is cached; the spoken-message note goes after it so the cache still hits.
+        system: [
+          { type: "text", text: systemPrompt(level, scenario), cache_control: { type: "ephemeral" } },
+          ...(body.lastSpoken === true ? [{ type: "text", text: SPOKEN_NOTE }] : []),
+        ],
         tools: [TUTOR_TOOL],
         // "auto" rather than a forced tool: forced tool choice can clash with the
         // model's adaptive thinking. The prompt requires the tool; plain text is a fallback.
