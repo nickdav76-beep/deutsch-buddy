@@ -23,6 +23,7 @@ export type Settings = {
   autoSpeak: boolean;
   listener: string; // "azure" or "browser"
   autoSend: boolean; // send automatically after a pause in speech
+  showLena: boolean; // the animated portrait above the chat
 };
 
 export async function sendChat(

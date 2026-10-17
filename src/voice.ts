@@ -1,5 +1,6 @@
 import type { Settings } from "./api";
 import { alignWords, type WordTiming } from "./subtitles";
+import type { Viseme } from "./avatar";
 
 export const VOICES: { id: string; label: string }[] = [
   { id: "de-DE-KatjaNeural", label: "Katja (warm, clear)" },
@@ -10,7 +11,7 @@ export const VOICES: { id: string; label: string }[] = [
   { id: "off", label: "Off — text only" },
 ];
 
-export type Spoken = { url: string; words: WordTiming[] };
+export type Spoken = { url: string; words: WordTiming[]; visemes?: Viseme[] };
 
 // The tests and the screenshot script can swap in a fake synthesiser.
 declare global {
@@ -65,6 +66,9 @@ async function azureSynthesize(text: string, settings: Settings): Promise<Spoken
     const start = e.audioOffset / 1e7;
     raw.push({ text: e.text, offset: e.textOffset, start, end: start + e.duration / 1e7 });
   };
+  // Mouth shapes for lip-sync, timed against the same audio.
+  const visemes: Viseme[] = [];
+  synth.visemeReceived = (_s, e) => visemes.push({ t: e.audioOffset / 1e7, id: e.visemeId });
   try {
     const result = await new Promise<import("microsoft-cognitiveservices-speech-sdk").SpeechSynthesisResult>(
       (resolve, reject) => synth.speakTextAsync(text, resolve, (err) => reject(new Error(err))),
@@ -75,7 +79,7 @@ async function azureSynthesize(text: string, settings: Settings): Promise<Spoken
       throw new Error("Voice failed: " + why);
     }
     const url = URL.createObjectURL(new Blob([result.audioData], { type: "audio/mpeg" }));
-    return { url, words: alignWords(text, raw) };
+    return { url, words: alignWords(text, raw), visemes: visemes.sort((a, b) => a.t - b.t) };
   } finally {
     synth.close();
   }

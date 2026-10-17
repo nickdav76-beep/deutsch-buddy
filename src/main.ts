@@ -6,6 +6,7 @@ import { store, type Turn } from "./store";
 import { buildSegments, wordPositions, type WordTiming } from "./subtitles";
 import { synthesize, VOICES } from "./voice";
 import { LISTENERS, startListening, type Session } from "./listen";
+import { Avatar } from "./avatar";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const chat = $<HTMLElement>("chat");
@@ -16,10 +17,38 @@ const dialog = $<HTMLDialogElement>("settings");
 const form = $<HTMLFormElement>("settingsForm");
 const avatar = document.querySelector(".avatar") as HTMLElement;
 const micBtn = $<HTMLButtonElement>("micBtn");
+const stageEl = $<HTMLButtonElement>("stage");
 
 let settings: Settings = store.settings();
 let turns: Turn[] = store.turns();
 let busy = false;
+
+// ---------- Lena's animated portrait ----------
+const lena = new Avatar(stageEl);
+const STAGE_KEY = "db.stageSmall";
+let stageSmall = (() => {
+  try {
+    return localStorage.getItem(STAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+let typing = false;
+function stageUi() {
+  document.body.classList.toggle("no-lena", !settings.showLena);
+  const compact = stageSmall || typing;
+  stageEl.classList.toggle("small", compact);
+  lena.setCompact(compact);
+}
+stageEl.addEventListener("click", () => {
+  stageSmall = !stageSmall;
+  try {
+    localStorage.setItem(STAGE_KEY, stageSmall ? "1" : "0");
+  } catch {
+    /* fine: just not remembered */
+  }
+  stageUi();
+});
 
 // Word timings for Lena's messages, keyed by message text, so the words can light up.
 const timings = new Map<string, WordTiming[]>();
@@ -292,14 +321,17 @@ async function speak(index: number, rate: number, auto = false) {
     onWord: (w: number) => highlight(index, w),
     onEnd: () => {
       if (speaking?.turn === index) speaking = null;
+      lena.stopSpeaking();
       render();
     },
+    onFrame: (time: number) => lena.at(time),
   };
   try {
     if (settings.voice === "device") {
       timings.set(t.text, wordPositions(t.text).map((p) => ({ ...p, start: 0, end: 0 })));
       speaking = { turn: index, word: -1 };
       render();
+      lena.speak([]); // no mouth shapes from the device voice: natural-looking movement instead
       await playDevice(t.text, rate, handlers);
       return;
     }
@@ -310,10 +342,12 @@ async function speak(index: number, rate: number, auto = false) {
     loadingTurn = null;
     speaking = { turn: index, word: -1 };
     render();
+    lena.speak(spoken.visemes ?? []);
     await playTimed(spoken.url, spoken.words, rate, handlers);
   } catch (e) {
     loadingTurn = null;
     speaking = null;
+    lena.stopSpeaking();
     render();
     const msg = e instanceof Error ? e.message : "Lena's voice didn't work.";
     // A phone blocking sound before the first tap isn't worth an error: the Listen button still works.
@@ -331,6 +365,7 @@ async function talk() {
   if (!settings.workerUrl) return dialog.showModal();
   busy = true;
   sendBtn.disabled = true;
+  lena.setMood("thinking");
   render();
   try {
     const history = turns.map((t) => ({ role: t.role, content: t.text }));
@@ -351,10 +386,14 @@ async function talk() {
     });
     store.saveTurns(turns);
     busy = false;
+    lena.setMood("idle");
+    // A small nod when the learner's sentence needed no corrections.
+    if (last && last.role === "user" && (res.corrections ?? []).length === 0) lena.nod();
     render();
     if (settings.autoSpeak) speak(turns.length - 1, 1, true);
   } catch (e) {
     busy = false;
+    lena.setMood("idle");
     render();
     showError(e instanceof Error ? e.message : "Something went wrong.");
   } finally {
@@ -402,6 +441,7 @@ async function startMic() {
   autosize();
   micUi();
   try {
+    lena.setMood("listening");
     session = await startListening(settings, {
       onText: (text) => {
         input.value = text;
@@ -414,6 +454,7 @@ async function startMic() {
         clearTimeout(idleTimer);
         clearTimeout(capTimer);
         session = null;
+        lena.setMood("idle");
         micUi();
         if (err) return showError(err.message);
         if (settings.autoSend && input.value.trim()) composer.requestSubmit();
@@ -422,6 +463,7 @@ async function startMic() {
     });
     capTimer = window.setTimeout(stopMic, MAX_MS);
   } catch (e) {
+    lena.setMood("idle");
     showError(e instanceof Error ? e.message : "The microphone couldn't start.");
   } finally {
     micStarting = false;
@@ -433,6 +475,16 @@ micBtn.addEventListener("click", () => (session ? stopMic() : startMic()));
 
 // Typing in the box means it's no longer purely what the microphone heard.
 input.addEventListener("input", () => (spokenDraft = false));
+
+// Give the chat more room while the keyboard is up.
+input.addEventListener("focus", () => {
+  typing = true;
+  stageUi();
+});
+input.addEventListener("blur", () => {
+  typing = false;
+  stageUi();
+});
 
 composer.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -493,8 +545,10 @@ form.addEventListener("submit", () => {
     autoSpeak: data.get("autoSpeak") === "on",
     listener: String(data.get("listener") || "azure"),
     autoSend: data.get("autoSend") === "on",
+    showLena: data.get("showLena") === "on",
   };
   store.saveSettings(settings);
+  stageUi();
   stop();
   // A new scenario starts a fresh conversation so Lena's role makes sense.
   if (before !== settings.scenario + settings.level || turns.length === 0) {
@@ -516,5 +570,6 @@ $("newChat").addEventListener("click", () => {
   talk();
 });
 
+stageUi();
 render();
 if (settings.workerUrl && turns.length === 0) talk();

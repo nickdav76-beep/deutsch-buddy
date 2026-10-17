@@ -41,6 +41,7 @@ export const defaultSettings: Settings = {
   autoSpeak: true,
   listener: "azure",
   autoSend: true,
+  showLena: true,
 };
 
 export const store = {

@@ -34,10 +34,16 @@ A personal German conversation tutor. The learner is Nick, an English speaker le
 - Answers are cached in `localStorage` (`db.words`, max 400) so repeat taps are instant and free; the popup's speaker button synthesises just that word.
 - The bubble tap no longer toggles English; the **English** button does.
 
+## Lena's face (Stage 4)
+- `src/avatar.ts`: the portrait (`src/assets/lena.webp`, a cropped, background-free trace of design E) inside one SVG, with a face rig drawn over it: a skin patch over the original lips, redrawn lips (upper, lower, dark interior + teeth) and two eyelids.
+- Lip-sync: `voice.ts` collects Azure `visemeReceived` events (`{t, id}`, id 0–21); `player.ts` calls `onFrame(audio.currentTime)`; `Avatar.at(t)` maps the current viseme through `VISEME_SHAPES` (open 0–1, wide −1…1) and eases the mouth towards it. Device voice has no visemes, so `speak([])` animates a natural-looking rhythm instead.
+- Moods: `listening` while the mic is open (slight lean-in), `thinking` while waiting for a reply, `nod()` after a sentence with no corrections. Blink and breathing are CSS.
+- The panel (`#stage`) shrinks to 104 px while typing or when tapped (remembered in `db.stageSmall`); compact mode switches the SVG viewBox so eyes and mouth both stay in frame. Settings → "Show Lena's animated portrait" hides it.
+
 ## Roadmap
 1. Text chat with corrections ← done
 2. Azure neural voice + word-by-word subtitles (word-boundary events) ← done
 3. Voice input (Azure STT, browser recognition option) ← done
-4. Own SVG character, lip-sync from Azure viseme events
+4. Animated Lena (portrait E), lip-sync from Azure viseme events ← done
 5. Learning memory: mistakes log, review mode, more scenarios
 6. Polish, Rive character

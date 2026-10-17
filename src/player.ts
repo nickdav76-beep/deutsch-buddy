@@ -39,7 +39,7 @@ export function unlockAudio() {
   if ("speechSynthesis" in window) speechSynthesis.cancel();
 }
 
-type Handlers = { onWord: (i: number) => void; onEnd: () => void };
+type Handlers = { onWord: (i: number) => void; onEnd: () => void; onFrame?: (t: number) => void };
 let stopCurrent: (() => void) | null = null;
 
 export function stop() {
@@ -65,6 +65,7 @@ export function playTimed(url: string, words: WordTiming[], rate: number, h: Han
     const tick = () => {
       const i = activeWord(words, audio.currentTime);
       if (i !== last) h.onWord((last = i));
+      h.onFrame?.(audio.currentTime);
       raf = requestAnimationFrame(tick);
     };
     stopCurrent = () => {
