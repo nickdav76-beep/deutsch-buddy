@@ -31,7 +31,14 @@ function save(key: string, value: unknown) {
   }
 }
 
-export const defaultSettings: Settings = { workerUrl: "", accessCode: "", level: "A2", scenario: "free" };
+export const defaultSettings: Settings = {
+  workerUrl: "",
+  accessCode: "",
+  level: "A2",
+  scenario: "free",
+  voice: "de-DE-KatjaNeural",
+  autoSpeak: true,
+};
 
 export const store = {
   settings: () => load(KEY.settings, defaultSettings),

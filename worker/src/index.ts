@@ -5,6 +5,24 @@ export interface Env {
   ACCESS_CODE: string; // shared secret the app sends, so strangers can't spend your credit
   ALLOWED_ORIGINS: string; // comma-separated, e.g. "https://nickdav76-beep.github.io,http://localhost:5173"
   MODEL?: string;
+  AZURE_SPEECH_KEY?: string; // Azure Speech resource key (secret)
+  AZURE_SPEECH_REGION?: string; // e.g. "australiaeast"
+}
+
+/** Swap the long-lived Azure key for a 10-minute token the app can use directly. */
+async function speechToken(env: Env, headers: Record<string, string>): Promise<Response> {
+  if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {
+    return json({ error: "speech_not_configured" }, 503, headers);
+  }
+  const region = env.AZURE_SPEECH_REGION.trim().toLowerCase();
+  const res = await fetch(`https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+    method: "POST",
+    headers: { "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY.trim(), "Content-Length": "0" },
+  });
+  if (!res.ok) {
+    return json({ error: "azure_token_failed", status: res.status }, 502, headers);
+  }
+  return json({ token: await res.text(), region, expiresInSeconds: 540 }, 200, headers);
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -19,7 +37,7 @@ function cors(origin: string | null, env: Env): Record<string, string> {
   const ok = origin && allowed.includes(origin);
   return {
     "Access-Control-Allow-Origin": ok ? origin : allowed[0] ?? "",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Access-Code",
     Vary: "Origin",
   };
@@ -66,8 +84,12 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
 
     const url = new URL(req.url);
-    if (req.method !== "POST" || url.pathname !== "/chat") return json({ error: "not_found" }, 404, headers);
+    if (req.method === "GET" && url.pathname === "/") return json({ ok: true, service: "deutsch-buddy-api" }, 200, headers);
+    if (req.method !== "POST" || (url.pathname !== "/chat" && url.pathname !== "/speech-token")) {
+      return json({ error: "not_found" }, 404, headers);
+    }
     if (req.headers.get("X-Access-Code") !== env.ACCESS_CODE) return json({ error: "bad_access_code" }, 401, headers);
+    if (url.pathname === "/speech-token") return speechToken(env, headers);
 
     let body: any;
     try {

@@ -19,6 +19,8 @@ export type Settings = {
   accessCode: string;
   level: string;
   scenario: string;
+  voice: string; // an Azure voice name, "device" or "off"
+  autoSpeak: boolean;
 };
 
 export async function sendChat(

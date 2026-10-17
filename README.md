@@ -35,6 +35,16 @@ Open the app, tap the gear, paste the Worker URL and your access code, pick your
 
 On iPhone: Share → **Add to Home Screen** to use it like an app.
 
+### 5. Give Lena a voice (Stage 2)
+1. In the [Azure portal](https://portal.azure.com), create a **Speech** resource with the **Free F0** pricing tier. Pick a region close to you, e.g. Australia East.
+2. Open the resource → **Keys and Endpoint**. Copy **Key 1** and the **Location/Region** (e.g. `australiaeast`).
+3. In Cloudflare → your Worker → **Settings → Variables and Secrets**, add:
+   - `AZURE_SPEECH_KEY` (Secret): Key 1
+   - `AZURE_SPEECH_REGION` (Text): the region, e.g. `australiaeast`
+4. Paste the latest `worker/dist/worker.js` into the Worker's code editor and deploy.
+
+Lena now reads each reply aloud, lighting up each word as she says it. **Listen** replays, **Slowly** plays at 75% speed, and the voice can be changed in settings.
+
 ## Running locally
 ```bash
 npm install

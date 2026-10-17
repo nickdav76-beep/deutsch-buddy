@@ -42,7 +42,39 @@ describe("parseTutorOutput", () => {
   });
 });
 
+describe("speech token", () => {
+  const tokenReq = (code = "geheim") =>
+    new Request("https://api.example/speech-token", { method: "POST", headers: { "X-Access-Code": code } });
+
+  it("needs the access code", async () => {
+    const res = await worker.fetch(tokenReq("falsch"), { ...env, AZURE_SPEECH_KEY: "k", AZURE_SPEECH_REGION: "australiaeast" });
+    expect(res.status).toBe(401);
+  });
+
+  it("says when Azure isn't configured", async () => {
+    const res = await worker.fetch(tokenReq(), env);
+    expect(res.status).toBe(503);
+  });
+
+  it("swaps the Azure key for a token without exposing the key", async () => {
+    const fake = vi.fn(async () => new Response("eyJ-token", { status: 200 }));
+    vi.stubGlobal("fetch", fake);
+    const res = await worker.fetch(tokenReq(), { ...env, AZURE_SPEECH_KEY: "azure-key", AZURE_SPEECH_REGION: " AustraliaEast " });
+    const body: any = await res.json();
+    expect(body).toEqual({ token: "eyJ-token", region: "australiaeast", expiresInSeconds: 540 });
+    expect(JSON.stringify(body)).not.toContain("azure-key");
+    const [url, init] = fake.mock.calls[0] as any;
+    expect(url).toBe("https://australiaeast.api.cognitive.microsoft.com/sts/v1.0/issueToken");
+    expect(init.headers["Ocp-Apim-Subscription-Key"]).toBe("azure-key");
+  });
+});
+
 describe("worker", () => {
+  it("answers a health check", async () => {
+    const res = await worker.fetch(new Request("https://api.example/"), env);
+    expect(await res.json()).toEqual({ ok: true, service: "deutsch-buddy-api" });
+  });
+
   it("refuses a wrong access code", async () => {
     const res = await worker.fetch(post({ messages: [] }, "falsch"), env);
     expect(res.status).toBe(401);

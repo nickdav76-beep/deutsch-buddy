@@ -15,9 +15,16 @@ A personal German conversation tutor. The learner is Nick, an English speaker le
 - Keep calls cheap: history is trimmed to 20 messages, the system prompt is cached.
 - Run `npm test` and `npm run build` before every commit.
 
+## Voice (Stage 2)
+- The Worker's `POST /speech-token` swaps `AZURE_SPEECH_KEY` for a 10-minute Azure token; the Azure key never reaches the app.
+- `src/voice.ts` synthesises with the Speech SDK (lazy-loaded) to memory, collecting word-boundary timings; `src/player.ts` plays the MP3 through one shared `<audio>` element and reports the current word; `src/subtitles.ts` holds the pure timing/alignment logic (unit-tested).
+- One audio element, unlocked on the first tap, because iOS blocks sound that doesn't follow a tap.
+- Voices: Katja (default), Amala, Seraphina, Conrad; "device" uses the browser's own voice; "off" is text only.
+- The Cloudflare dashboard runs `worker/dist/worker.js` (bundled with esbuild) — rebuild and re-paste it after Worker changes.
+
 ## Roadmap
 1. Text chat with corrections ← done
-2. Azure neural voice + word-by-word subtitles (word-boundary events)
+2. Azure neural voice + word-by-word subtitles (word-boundary events) ← done
 3. Voice input (browser speech recognition, Azure STT fallback)
 4. Own SVG character, lip-sync from Azure viseme events
 5. Learning memory: mistakes log, review mode, more scenarios
